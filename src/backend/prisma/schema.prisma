@@ -1,0 +1,662 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User Management with Enhanced Security
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String
+  name              String
+  phone             String?
+  role              UserRole @default(AGENT)
+  isActive          Boolean  @default(true)
+  isEmailVerified   Boolean  @default(false)
+  avatar            String?
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean  @default(false)
+  backupCodes       String[]
+  lastLoginAt       DateTime?
+  lastPasswordChange DateTime?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  loginAttempts     Int      @default(0)
+  lockedUntil       DateTime?
+  preferences       Json?
+  timezone          String   @default("UTC")
+  language          String   @default("en")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  properties      Property[]
+  bookings        Booking[]
+  leads           Lead[]
+  customers       Customer[]
+  transactions    Transaction[]
+  notifications   Notification[]
+  twoFactorAuth   TwoFactorAuth?
+  sessions        Session[]
+  securityEvents  SecurityEvent[]
+  auditLogs       AuditLog[]
+  createdFiles    File[]
+  createdProperties Property[] @relation("PropertyCreatedBy")
+  updatedProperties Property[] @relation("PropertyUpdatedBy")
+  createdCustomers Customer[] @relation("CustomerCreatedBy")
+  updatedCustomers Customer[] @relation("CustomerUpdatedBy")
+  createdLeads    Lead[] @relation("LeadCreatedBy")
+  updatedLeads    Lead[] @relation("LeadUpdatedBy")
+  createdBookings Booking[] @relation("BookingCreatedBy")
+  updatedBookings Booking[] @relation("BookingUpdatedBy")
+  createdPayments Payment[] @relation("PaymentCreatedBy")
+  updatedPayments Payment[] @relation("PaymentUpdatedBy")
+  createdTransactions Transaction[] @relation("TransactionCreatedBy")
+  updatedTransactions Transaction[] @relation("TransactionUpdatedBy")
+
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  AGENT
+  CUSTOMER
+}
+
+// Property Management with Enhanced Features
+model Property {
+  id          String        @id @default(cuid())
+  name        String
+  type        PropertyType
+  status      PropertyStatus @default(AVAILABLE)
+  location    String
+  address     String
+  city        String
+  state       String
+  country     String
+  pincode     String?
+  price       Decimal       @db.Decimal(15, 2)
+  area        Decimal       @db.Decimal(10, 2)
+  bedrooms    Int?
+  bathrooms   Int?
+  floors      Int?
+  facing      String?
+  vastu       String?
+  amenities   String[]
+  features    String[]
+  description String?
+  images      String[]
+  videos      String[]
+  documents   String[]
+  floorPlan   String?
+  layout3D    String?
+  coordinates Json?
+  isActive    Boolean       @default(true)
+  isFeatured  Boolean       @default(false)
+  views       Int           @default(0)
+  inquiries   Int           @default(0)
+  bookings    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String
+  updatedById String?
+
+  // Relations
+  createdBy User      @relation("PropertyCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?     @relation("PropertyUpdatedBy", fields: [updatedById], references: [id])
+  bookings  Booking[]
+  inventory InventoryItem[]
+  files     File[]
+
+  @@index([type])
+  @@index([status])
+  @@index([city])
+  @@index([price])
+  @@index([createdAt])
+  @@map("properties")
+}
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  HOUSE
+  PLOT
+  COMMERCIAL
+  OFFICE
+  SHOP
+  WAREHOUSE
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+  MAINTENANCE
+  DRAFT
+}
+
+// Inventory Management
+model InventoryItem {
+  id          String   @id @default(cuid())
+  propertyId  String
+  unitNumber  String
+  floor       Int
+  block       String?
+  status      InventoryStatus @default(AVAILABLE)
+  price       Decimal  @db.Decimal(15, 2)
+  area        Decimal  @db.Decimal(10, 2)
+  bedrooms    Int?
+  bathrooms   Int?
+  facing      String?
+  vastu       String?
+  amenities   String[]
+  images      String[]
+  floorPlan   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@unique([propertyId, unitNumber])
+  @@map("inventory_items")
+}
+
+enum InventoryStatus {
+  AVAILABLE
+  SOLD
+  RENTED
+  MAINTENANCE
+  DRAFT
+}
+
+// Customer Management
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  pincode     String?
+  dateOfBirth DateTime?
+  occupation  String?
+  income      Decimal? @db.Decimal(15, 2)
+  preferences Json?
+  budget      Decimal? @db.Decimal(15, 2)
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+  updatedById String?
+
+  // Relations
+  createdBy User      @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?     @relation("CustomerUpdatedBy", fields: [updatedById], references: [id])
+  bookings  Booking[]
+  leads     Lead[]
+  files     File[]
+
+  @@map("customers")
+}
+
+// Lead Management
+model Lead {
+  id          String     @id @default(cuid())
+  customerId  String?
+  name        String
+  email       String
+  phone       String
+  source      LeadSource
+  status      LeadStatus @default(NEW)
+  score       Int        @default(0)
+  interest    String?
+  budget      Decimal?   @db.Decimal(15, 2)
+  notes       String?
+  assignedTo  String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdById String
+  updatedById String?
+
+  // Relations
+  customer Customer? @relation(fields: [customerId], references: [id])
+  createdBy User     @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?    @relation("LeadUpdatedBy", fields: [updatedById], references: [id])
+  files     File[]
+
+  @@map("leads")
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  WALK_IN
+  PHONE
+  EMAIL
+  SOCIAL
+  ADVERTISEMENT
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  CLOSED
+  LOST
+}
+
+// Booking Management
+model Booking {
+  id            String        @id @default(cuid())
+  propertyId    String
+  inventoryId   String?
+  customerId    String
+  agentId       String
+  status        BookingStatus @default(PENDING)
+  bookingDate   DateTime
+  moveInDate    DateTime?
+  moveOutDate   DateTime?
+  amount        Decimal       @db.Decimal(15, 2)
+  advanceAmount Decimal?      @db.Decimal(15, 2)
+  paymentMethod PaymentMethod?
+  paymentStatus PaymentStatus @default(PENDING)
+  notes         String?
+  documents     String[]
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdById   String
+  updatedById   String?
+
+  // Relations
+  property  Property      @relation(fields: [propertyId], references: [id])
+  inventory InventoryItem? @relation(fields: [inventoryId], references: [id])
+  customer  Customer      @relation(fields: [customerId], references: [id])
+  agent     User          @relation(fields: [agentId], references: [id])
+  createdBy User          @relation("BookingCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?         @relation("BookingUpdatedBy", fields: [updatedById], references: [id])
+  payments  Payment[]
+  files     File[]
+
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+// Payment Management
+model Payment {
+  id            String        @id @default(cuid())
+  bookingId     String?
+  transactionId String?
+  amount        Decimal       @db.Decimal(15, 2)
+  currency      String        @default("INR")
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  gateway       String?
+  gatewayId     String?
+  gatewayData   Json?
+  processedAt   DateTime?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdById   String
+  updatedById   String?
+
+  // Relations
+  booking     Booking?     @relation(fields: [bookingId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  createdBy   User         @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?        @relation("PaymentUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NET_BANKING
+  WALLET
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+// Transaction Management
+model Transaction {
+  id          String            @id @default(cuid())
+  type        TransactionType
+  category    String
+  amount      Decimal           @db.Decimal(15, 2)
+  currency    String            @default("INR")
+  description String?
+  reference   String?
+  date        DateTime
+  status      TransactionStatus @default(PENDING)
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdById String
+  updatedById String?
+
+  // Relations
+  createdBy User      @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  updatedBy User?     @relation("TransactionUpdatedBy", fields: [updatedById], references: [id])
+  payments  Payment[]
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+  REFUND
+  BOOKING
+  SALE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// Notification System
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false)
+  priority  NotificationPriority @default(MEDIUM)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  LEAD_ASSIGNED
+  LEAD_UPDATED
+  PROPERTY_ADDED
+  PROPERTY_UPDATED
+  CUSTOMER_ADDED
+  SYSTEM_ALERT
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// File Management
+model File {
+  id           String   @id @default(cuid())
+  originalName String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  url          String
+  thumbnailUrl String?
+  folder       String
+  metadata     Json?
+  propertyId   String?
+  bookingId    String?
+  leadId       String?
+  customerId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdById  String
+
+  // Relations
+  property  Property?  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  booking   Booking?   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  lead      Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  customer  Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User       @relation(fields: [createdById], references: [id])
+
+  @@map("files")
+}
+
+// Audit Log
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// System Configuration
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      String   @default("string")
+  description String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+// Two-Factor Authentication
+model TwoFactorAuth {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  secret     String
+  enabled    Boolean  @default(false)
+  backupCodes String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor_auth")
+}
+
+// Session Management
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  ipAddress String
+  userAgent String
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Rate Limiting
+model RateLimit {
+  id         String   @id @default(cuid())
+  key        String
+  identifier String
+  action     String
+  count      Int      @default(1)
+  windowStart DateTime
+  windowEnd   DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([key, identifier])
+  @@index([windowStart, windowEnd])
+  @@map("rate_limits")
+}
+
+// Security Events
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  eventType String
+  severity  SecuritySeverity @default(INFO)
+  message   String
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("security_events")
+}
+
+enum SecuritySeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+// API Keys for External Integrations
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  key         String   @unique
+  secret      String
+  permissions String[]
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("api_keys")
+}
+
+// Webhook Subscriptions
+model Webhook {
+  id          String   @id @default(cuid())
+  url         String
+  events      String[]
+  secret      String?
+  isActive    Boolean  @default(true)
+  lastTriggered DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("webhooks")
+}
+
+// Webhook Events
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  webhookId String
+  event     String
+  payload   Json
+  status    WebhookStatus @default(PENDING)
+  attempts  Int      @default(0)
+  lastAttempt DateTime?
+  createdAt DateTime @default(now())
+
+  // Relations
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+enum WebhookStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+// Add webhook relation to Webhook model
+model Webhook {
+  id          String   @id @default(cuid())
+  url         String
+  events      String[]
+  secret      String?
+  isActive    Boolean  @default(true)
+  lastTriggered DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  events WebhookEvent[]
+
+  @@map("webhooks")
+}

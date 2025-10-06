@@ -1,0 +1,17 @@
+{
+  "name": "property-management-simple",
+  "version": "1.0.0",
+  "description": "Simple backend for quick testing",
+  "main": "simple-backend.js",
+  "scripts": {
+    "start": "node simple-backend.js",
+    "dev": "node simple-backend.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.3.1"
+  }
+}

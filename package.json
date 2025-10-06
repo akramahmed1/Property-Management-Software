@@ -1,0 +1,78 @@
+{
+  "name": "property-management-software",
+  "version": "1.0.0",
+  "description": "Comprehensive Property Management Software MVP for India and Middle East markets",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd src/backend && npm run dev",
+    "dev:frontend": "cd src/frontend && npm start",
+    "dev:mobile": "cd src/frontend && npx expo start",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd src/backend && npm run build",
+    "build:frontend": "cd src/frontend && npm run build",
+    "test": "npm run test:backend && npm run test:frontend && npm run test:e2e",
+    "test:backend": "cd src/backend && npm test",
+    "test:frontend": "cd src/frontend && npm test",
+    "test:unit": "cd tests && npm run test:unit",
+    "test:integration": "cd tests && npm run test:integration",
+    "test:e2e": "cd tests && npm run test:e2e",
+    "test:coverage": "cd tests && npm run test:coverage",
+    "test:watch": "cd tests && npm run test:watch",
+    "test:verbose": "cd tests && npm run test:verbose",
+    "test:comprehensive": "node scripts/test-runner.js",
+    "test:local": "node scripts/local-test.js",
+    "test:demo": "node scripts/e2e-test.js",
+    "test:all": "npm run test:comprehensive",
+    "setup:test": "node scripts/setup-and-test.js",
+    "db:migrate": "cd src/backend && npm run db:migrate",
+    "db:seed": "cd src/backend && npm run db:seed",
+    "db:seed:demo": "cd src/backend && npx ts-node prisma/seed-demo.ts",
+    "db:migrate:prod": "cd src/backend && npm run db:migrate:prod",
+    "db:seed:prod": "cd src/backend && npm run db:seed:prod",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd src/backend && npm run lint",
+    "lint:frontend": "cd src/frontend && npm run lint",
+    "lint:fix": "npm run lint:backend -- --fix && npm run lint:frontend -- --fix",
+    "start": "cd src/backend && npm start",
+    "postinstall": "npm run install:all",
+    "install:all": "cd src/backend && npm install && cd ../frontend && npm install && cd ../../tests && npm install"
+  },
+  "keywords": [
+    "property-management",
+    "real-estate",
+    "crm",
+    "erp",
+    "react-native",
+    "nodejs",
+    "postgresql"
+  ],
+  "author": "Property Management Software Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

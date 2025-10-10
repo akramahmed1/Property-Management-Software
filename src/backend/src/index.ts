@@ -38,6 +38,10 @@ import paymentRoutes from './routes/payments';
 import fileRoutes from './routes/files';
 import analyticsRoutes from './routes/analytics';
 import securityRoutes from './routes/security';
+import companyRoutes from './routes/company';
+import projectRoutes from './routes/projects';
+import leadRoutes from './routes/leads';
+import bookingRoutes from './routes/bookings';
 
 const app = express();
 const server = createServer(app);
@@ -137,6 +141,10 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/v1/company', companyRoutes);
+app.use('/api/v1/projects', projectRoutes);
+app.use('/api/v1/leads', leadRoutes);
+app.use('/api/v1/bookings', bookingRoutes);
 
 // Initialize WebSocket service
 webSocketService = new WebSocketService(server, notificationService);

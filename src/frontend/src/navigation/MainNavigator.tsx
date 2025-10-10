@@ -14,6 +14,7 @@ import PropertyDetailScreen from '../screens/main/PropertyDetailScreen';
 import CreatePropertyScreen from '../screens/main/CreatePropertyScreen';
 import LeadDetailScreen from '../screens/main/LeadDetailScreen';
 import CustomerDetailScreen from '../screens/main/CustomerDetailScreen';
+import CustomerPortalScreen from '../screens/main/CustomerPortalScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -54,6 +55,11 @@ const CRMStack = () => (
       name="CustomerDetail" 
       component={CustomerDetailScreen}
       options={{ title: 'Customer Details' }}
+    />
+    <Stack.Screen 
+      name="CustomerPortal" 
+      component={CustomerPortalScreen}
+      options={{ title: 'Customer Portal' }}
     />
   </Stack.Navigator>
 );

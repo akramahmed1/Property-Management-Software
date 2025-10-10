@@ -10,6 +10,7 @@ import { store, persistor } from './src/store';
 import { theme } from './src/theme';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoadingScreen from './src/screens/LoadingScreen';
+import OfflineIndicator from './src/components/OfflineIndicator';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +29,7 @@ export default function App() {
           <PaperProvider theme={theme}>
             <NavigationContainer>
               <AppNavigator />
+              <OfflineIndicator />
               <StatusBar style="auto" />
             </NavigationContainer>
           </PaperProvider>

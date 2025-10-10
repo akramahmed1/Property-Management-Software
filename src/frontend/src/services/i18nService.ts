@@ -136,27 +136,54 @@ class I18nService {
     return i18n.t(key, options);
   }
 
-  public formatCurrency(amount: number, currency: string = 'USD'): string {
-    const formatter = new Intl.NumberFormat(this.currentLanguage, {
+  public formatCurrency(amount: number, region: string = 'INDIA'): string {
+    const isArabic = this.currentLanguage === 'ar';
+    const currencyMap = {
+      'INDIA': { currency: 'INR', locale: isArabic ? 'ar-IN' : 'en-IN' },
+      'UAE': { currency: 'AED', locale: isArabic ? 'ar-AE' : 'en-AE' },
+      'SAUDI': { currency: 'SAR', locale: 'ar-SA' },
+      'QATAR': { currency: 'QAR', locale: isArabic ? 'ar-QA' : 'en-QA' }
+    } as const;
+
+    const config = currencyMap[region as keyof typeof currencyMap] || currencyMap.INDIA;
+
+    const formatter = new Intl.NumberFormat(config.locale, {
       style: 'currency',
-      currency: currency,
+      currency: config.currency,
     });
     return formatter.format(amount);
   }
 
-  public formatNumber(number: number): string {
-    const formatter = new Intl.NumberFormat(this.currentLanguage);
+  public formatNumber(number: number, region: string = 'INDIA'): string {
+    const isArabic = this.currentLanguage === 'ar';
+    const localeMap = {
+      'INDIA': isArabic ? 'ar-IN' : 'en-IN',
+      'UAE': isArabic ? 'ar-AE' : 'en-AE',
+      'SAUDI': 'ar-SA',
+      'QATAR': isArabic ? 'ar-QA' : 'en-QA'
+    } as const;
+
+    const locale = localeMap[region as keyof typeof localeMap] || (isArabic ? 'ar-IN' : 'en-IN');
+    const formatter = new Intl.NumberFormat(locale);
     return formatter.format(number);
   }
 
-  public formatDate(date: Date, options?: Intl.DateTimeFormatOptions): string {
+  public formatDate(date: Date, region: string = 'INDIA', options?: Intl.DateTimeFormatOptions): string {
+    const localeMap = {
+      'INDIA': 'en-IN',
+      'UAE': 'en-AE',
+      'SAUDI': 'ar-SA',
+      'QATAR': 'en-QA'
+    };
+    
+    const locale = localeMap[region as keyof typeof localeMap] || 'en-IN';
     const defaultOptions: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     };
     
-    const formatter = new Intl.DateTimeFormat(this.currentLanguage, {
+    const formatter = new Intl.DateTimeFormat(locale, {
       ...defaultOptions,
       ...options,
     });
@@ -218,6 +245,62 @@ class I18nService {
 
   public interpolate(template: string, values: Record<string, any>): string {
     return i18n.t(template, values);
+  }
+
+  // Region-specific formatting methods
+  public formatCurrencyByRegion(amount: number, region: string = 'INDIA'): string {
+    return this.formatCurrency(amount, region);
+  }
+
+  public formatNumberByRegion(number: number, region: string = 'INDIA'): string {
+    return this.formatNumber(number, region);
+  }
+
+  public formatDateByRegion(date: Date, region: string = 'INDIA', options?: Intl.DateTimeFormatOptions): string {
+    return this.formatDate(date, region, options);
+  }
+
+  public getRegionConfig(region: string = 'INDIA') {
+    const configs = {
+      'INDIA': {
+        currency: 'INR',
+        locale: 'en-IN',
+        timezone: 'Asia/Kolkata',
+        dateFormat: 'DD/MM/YYYY',
+        numberFormat: 'en-IN',
+        taxName: 'GST',
+        taxRate: 0.05
+      },
+      'UAE': {
+        currency: 'AED',
+        locale: 'en-AE',
+        timezone: 'Asia/Dubai',
+        dateFormat: 'DD/MM/YYYY',
+        numberFormat: 'en-AE',
+        taxName: 'VAT',
+        taxRate: 0.05
+      },
+      'SAUDI': {
+        currency: 'SAR',
+        locale: 'ar-SA',
+        timezone: 'Asia/Riyadh',
+        dateFormat: 'DD/MM/YYYY',
+        numberFormat: 'ar-SA',
+        taxName: 'VAT',
+        taxRate: 0.15
+      },
+      'QATAR': {
+        currency: 'QAR',
+        locale: 'en-QA',
+        timezone: 'Asia/Qatar',
+        dateFormat: 'DD/MM/YYYY',
+        numberFormat: 'en-QA',
+        taxName: 'VAT',
+        taxRate: 0.05
+      }
+    };
+    
+    return configs[region as keyof typeof configs] || configs.INDIA;
   }
 }
 

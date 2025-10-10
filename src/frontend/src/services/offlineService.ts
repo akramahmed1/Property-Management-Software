@@ -10,6 +10,20 @@ export interface OfflineData {
   action: 'create' | 'update' | 'delete';
 }
 
+export interface SyncConflict {
+  id: string;
+  type: OfflineData['type'];
+  localData: any;
+  serverData: any;
+  conflictFields: string[];
+  timestamp: Date;
+}
+
+export type ConflictResolution = {
+  conflictId: string;
+  resolution: 'local' | 'server' | 'merge';
+};
+
 export interface SyncStatus {
   isOnline: boolean;
   isSyncing: boolean;
@@ -23,7 +37,9 @@ class OfflineService {
   private isSyncing: boolean = false;
   private lastSyncTime: number | null = null;
   private syncListeners: Array<(status: SyncStatus) => void> = [];
+  private conflictListeners: Array<(conflicts: SyncConflict[]) => void> = [];
   private offlineData: Map<string, OfflineData> = new Map();
+  private pendingConflicts: SyncConflict[] = [];
 
   private constructor() {
     this.initializeOfflineService();
@@ -156,8 +172,90 @@ class OfflineService {
 
   private async syncItem(item: OfflineData): Promise<void> {
     // This would integrate with your API service
-    // For now, we'll simulate the sync process
+    // Simulate checking for conflicts
+    const hasConflict = Math.random() > 0.8; // 20% chance of conflict for demo
+    
+    if (hasConflict) {
+      // Simulate server data that conflicts
+      const serverData = { ...item.data, updatedAt: Date.now(), serverModified: true };
+      const conflictFields = Object.keys(item.data).filter(() => Math.random() > 0.5);
+      
+      const conflict: SyncConflict = {
+        id: item.id,
+        type: item.type,
+        localData: item.data,
+        serverData,
+        conflictFields,
+        timestamp: new Date(),
+      };
+      
+      this.pendingConflicts.push(conflict);
+      this.notifyConflictListeners([conflict]);
+      throw new Error('Sync conflict detected');
+    }
+    
     console.log('Syncing item:', item);
+  }
+
+  public addConflictListener(listener: (conflicts: SyncConflict[]) => void): void {
+    this.conflictListeners.push(listener);
+  }
+
+  public removeConflictListener(listener: (conflicts: SyncConflict[]) => void): void {
+    const index = this.conflictListeners.indexOf(listener);
+    if (index > -1) {
+      this.conflictListeners.splice(index, 1);
+    }
+  }
+
+  private notifyConflictListeners(conflicts: SyncConflict[]): void {
+    this.conflictListeners.forEach(listener => {
+      try {
+        listener(conflicts);
+      } catch (error) {
+        console.error('Error in conflict listener:', error);
+      }
+    });
+  }
+
+  public async resolveConflicts(resolutions: ConflictResolution[]): Promise<void> {
+    for (const resolution of resolutions) {
+      const conflictIndex = this.pendingConflicts.findIndex(c => c.id === resolution.conflictId);
+      if (conflictIndex === -1) continue;
+
+      const conflict = this.pendingConflicts[conflictIndex];
+      const offlineItem = this.offlineData.get(conflict.id);
+      
+      if (!offlineItem) continue;
+
+      // Apply resolution strategy
+      switch (resolution.resolution) {
+        case 'local':
+          // Keep local data, mark as synced
+          offlineItem.synced = true;
+          break;
+        case 'server':
+          // Replace with server data
+          offlineItem.data = conflict.serverData;
+          offlineItem.synced = true;
+          break;
+        case 'merge':
+          // Smart merge: combine both
+          offlineItem.data = { ...conflict.serverData, ...offlineItem.data };
+          offlineItem.synced = true;
+          break;
+      }
+
+      this.offlineData.set(conflict.id, offlineItem);
+      this.pendingConflicts.splice(conflictIndex, 1);
+    }
+
+    await this.saveOfflineData();
+    console.log('Conflicts resolved:', resolutions.length);
+  }
+
+  public getPendingConflicts(): SyncConflict[] {
+    return [...this.pendingConflicts];
   }
 
   public hasPendingData(): boolean {

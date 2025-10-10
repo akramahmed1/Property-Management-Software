@@ -17,7 +17,11 @@
     "db:migrate:prod": "npx prisma migrate deploy",
     "db:seed:prod": "npx prisma db seed",
     "db:generate": "npx prisma generate",
-    "db:studio": "npx prisma studio"
+    "db:studio": "npx prisma studio",
+    "drizzle:generate": "drizzle-kit generate",
+    "drizzle:migrate": "drizzle-kit migrate",
+    "drizzle:push": "drizzle-kit push",
+    "drizzle:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
@@ -49,7 +53,10 @@
     "pdfkit": "^0.14.0",
     "exceljs": "^4.4.0",
     "speakeasy": "^2.0.0",
-    "qrcode": "^1.5.3"
+    "qrcode": "^1.5.3",
+    "drizzle-orm": "^0.29.0",
+    "postgres": "^3.4.3",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -74,7 +81,8 @@
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "eslint": "^8.54.0",
-    "prisma": "^5.7.1"
+    "prisma": "^5.7.1",
+    "drizzle-kit": "^0.20.4"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

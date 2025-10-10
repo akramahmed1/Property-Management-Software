@@ -27,6 +27,7 @@ import { RootState, AppDispatch } from '../../store';
 import { setTransactions, setPayments, setLoading, setError } from '../../store/slices/erpSlice';
 import offlineService from '../../services/offlineService';
 import syncService from '../../services/syncService';
+import I18nService from '../../services/i18nService';
 
 const ERPScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -249,6 +250,19 @@ const ERPScreen: React.FC = () => {
               </Text>
             </View>
           ))}
+        </Card.Content>
+      </Card>
+
+      {/* Currency formatting examples by region and locale */}
+      <Card style={[styles.recentCard, { marginTop: 16 }]}>
+        <Card.Content>
+          <Title>Currency Formatting</Title>
+          <Paragraph>
+            UAE (English): {I18nService.getInstance().formatCurrencyByRegion(10000, 'UAE')}
+          </Paragraph>
+          <Paragraph>
+            UAE (Arabic): {(() => { const svc = I18nService.getInstance(); svc['currentLanguage'] = 'ar'; return svc.formatCurrencyByRegion(10000, 'UAE'); })()}
+          </Paragraph>
         </Card.Content>
       </Card>
     </ScrollView>

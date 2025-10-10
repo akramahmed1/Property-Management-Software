@@ -23,8 +23,10 @@ import { useNavigation } from '@react-navigation/native';
 
 import { RootState, AppDispatch } from '../../store';
 import { setLeads, setCustomers, setLoading, setError } from '../../store/slices/crmSlice';
-import offlineService from '../../services/offlineService';
+import offlineService, { SyncConflict, ConflictResolution } from '../../services/offlineService';
 import syncService from '../../services/syncService';
+import io from 'socket.io-client';
+import ConflictResolutionDialog from '../../components/ConflictResolutionDialog';
 
 const CRMScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -36,9 +38,32 @@ const CRMScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
 
   useEffect(() => {
     loadData();
+    
+    // Set up conflict listener
+    const handleConflicts = (detectedConflicts: SyncConflict[]) => {
+      setConflicts(detectedConflicts);
+      setShowConflictDialog(true);
+    };
+    
+    const service = offlineService.getInstance();
+    service.addConflictListener(handleConflicts);
+    
+    // Realtime: subscribe to lead/customer updates
+    const socket = io(String(process.env.EXPO_PUBLIC_WS_URL || process.env.WS_URL || 'http://localhost:3000'));
+    socket.on('lead_created', () => loadData());
+    socket.on('lead_updated', () => loadData());
+    socket.on('lead_deleted', () => loadData());
+    socket.on('customer_updated', () => loadData());
+    
+    return () => {
+      socket.disconnect();
+      service.removeConflictListener(handleConflicts);
+    };
   }, []);
 
   const loadData = async () => {
@@ -94,6 +119,10 @@ const CRMScreen: React.FC = () => {
 
   const handleCustomerPress = (customer: any) => {
     navigation.navigate('CustomerDetail' as never, { customerId: customer.id } as never);
+  };
+
+  const handleViewCustomerPortal = () => {
+    navigation.navigate('CustomerPortal' as never);
   };
 
   const getFilteredLeads = () => {
@@ -209,8 +238,28 @@ const CRMScreen: React.FC = () => {
   const filteredLeads = getFilteredLeads();
   const filteredCustomers = getFilteredCustomers();
 
+  const handleResolveConflicts = async (resolutions: ConflictResolution[]) => {
+    try {
+      const service = offlineService.getInstance();
+      await service.resolveConflicts(resolutions);
+      setShowConflictDialog(false);
+      setConflicts([]);
+      // Reload data after resolution
+      await loadData();
+    } catch (error) {
+      console.error('Failed to resolve conflicts:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
+      {/* Conflict Resolution Dialog */}
+      <ConflictResolutionDialog
+        visible={showConflictDialog}
+        conflicts={conflicts}
+        onResolve={handleResolveConflicts}
+        onCancel={() => setShowConflictDialog(false)}
+      />
       <View style={styles.header}>
         <SegmentedButtons
           value={activeTab}
@@ -227,20 +276,29 @@ const CRMScreen: React.FC = () => {
           value={searchQuery}
           style={styles.searchbar}
         />
-        <Menu
-          visible={showFilterMenu}
-          onDismiss={() => setShowFilterMenu(false)}
-          anchor={
-            <Button
-              mode="outlined"
-              onPress={() => setShowFilterMenu(true)}
-              icon="filter"
-              style={styles.filterButton}
-            >
-              Filter
-            </Button>
-          }
-        >
+        <View style={styles.headerActions}>
+          <Button
+            mode="outlined"
+            onPress={handleViewCustomerPortal}
+            icon="account-circle"
+            style={styles.portalButton}
+          >
+            Customer Portal
+          </Button>
+          <Menu
+            visible={showFilterMenu}
+            onDismiss={() => setShowFilterMenu(false)}
+            anchor={
+              <Button
+                mode="outlined"
+                onPress={() => setShowFilterMenu(true)}
+                icon="filter"
+                style={styles.filterButton}
+              >
+                Filter
+              </Button>
+            }
+          >
           <Menu.Item
             onPress={() => setFilterStatus('all')}
             title="All Status"
@@ -315,6 +373,14 @@ const styles = StyleSheet.create({
   },
   searchbar: {
     marginBottom: 8,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  portalButton: {
+    marginRight: 8,
   },
   filterButton: {
     marginTop: 8,

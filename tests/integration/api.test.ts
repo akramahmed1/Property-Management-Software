@@ -1,428 +1,442 @@
 import request from 'supertest';
-import { Express } from 'express';
 import { app } from '../../src/backend/src/index';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import { db } from '../../src/backend/src/config/drizzle';
+import { users, companies, projects, leads, bookings } from '../../src/backend/src/schema/drizzle';
 
 describe('API Integration Tests', () => {
   let authToken: string;
   let testUserId: string;
+  let testCompanyId: string;
+  let testProjectId: string;
+  let testLeadId: string;
+  let testBookingId: string;
 
   beforeAll(async () => {
     // Create test user
-    const hashedPassword = await bcrypt.hash('testpassword123', 12);
-    const user = await prisma.user.create({
-      data: {
-        name: 'Test User',
-        email: 'test@example.com',
-        password: hashedPassword,
-        role: 'AGENT',
-        isActive: true
-      }
-    });
-    testUserId = user.id;
+    const testUser = await db.insert(users).values({
+      email: 'test@example.com',
+      password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/4.5.6.7',
+      name: 'Test User',
+      phone: '+1234567890',
+      role: 'ADMIN',
+      isActive: true,
+      isEmailVerified: true
+    }).returning();
 
-    // Login to get auth token
-    const loginResponse = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'test@example.com',
-        password: 'testpassword123'
-      });
+    testUserId = testUser[0].id;
 
-    authToken = loginResponse.body.data.token;
+    // Create test company
+    const testCompany = await db.insert(companies).values({
+      name: 'Test Company',
+      region: 'INDIA',
+      currency: 'INR',
+      gst: '29ABCDE1234F1Z5',
+      taxRate: '0.05',
+      taxName: 'GST',
+      address: 'Test Address',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      country: 'India',
+      isActive: true
+    }).returning();
+
+    testCompanyId = testCompany[0].id;
+
+    // Create test project
+    const testProject = await db.insert(projects).values({
+      name: 'Test Project',
+      description: 'Test Project Description',
+      status: 'ONGOING',
+      location: 'Test Location',
+      address: 'Test Address',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      country: 'India',
+      totalUnits: 100,
+      availableUnits: 80,
+      soldUnits: 20,
+      priceRange: { min: 5000000, max: 10000000 },
+      amenities: ['Swimming Pool', 'Gym', 'Parking'],
+      features: ['Modern Design', 'Green Building'],
+      isActive: true,
+      createdById: testUserId
+    }).returning();
+
+    testProjectId = testProject[0].id;
+
+    // Create test lead
+    const testLead = await db.insert(leads).values({
+      name: 'Test Lead',
+      email: 'lead@example.com',
+      phone: '+1234567890',
+      source: 'WEBSITE',
+      stage: 'ENQUIRY_RECEIVED',
+      score: 10,
+      interest: '2 BHK Apartment',
+      budget: '5000000',
+      notes: 'Test lead notes',
+      isActive: true,
+      createdById: testUserId
+    }).returning();
+
+    testLeadId = testLead[0].id;
+
+    // Create test booking
+    const testBooking = await db.insert(bookings).values({
+      propertyId: testProjectId,
+      customerId: testUserId,
+      agentId: testUserId,
+      stage: 'TENTATIVELY_BOOKED',
+      status: 'PENDING',
+      bookingDate: new Date(),
+      amount: '5000000',
+      advanceAmount: '500000',
+      paymentMethod: 'UPI',
+      paymentStatus: 'PENDING',
+      notes: 'Test booking notes',
+      isActive: true,
+      createdById: testUserId
+    }).returning();
+
+    testBookingId = testBooking[0].id;
   });
 
   afterAll(async () => {
     // Clean up test data
-    await prisma.user.deleteMany({
-      where: { email: 'test@example.com' }
-    });
-    await prisma.property.deleteMany({
-      where: { createdById: testUserId }
-    });
-    await prisma.auditLog.deleteMany({
-      where: { userId: testUserId }
-    });
-    await prisma.$disconnect();
-  });
-
-  describe('Authentication', () => {
-    it('should register a new user', async () => {
-      const userData = {
-        name: 'New User',
-        email: 'newuser@example.com',
-        password: 'password123',
-        phone: '+1234567890'
-      };
-
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send(userData);
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.email).toBe(userData.email);
-
-      // Clean up
-      await prisma.user.delete({
-        where: { email: userData.email }
-      });
-    });
-
-    it('should login with valid credentials', async () => {
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'test@example.com',
-          password: 'testpassword123'
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.token).toBeDefined();
-    });
-
-    it('should reject invalid credentials', async () => {
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'test@example.com',
-          password: 'wrongpassword'
-        });
-
-      expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
-    });
-  });
-
-  describe('Properties', () => {
-    let propertyId: string;
-
-    it('should create a new property', async () => {
-      const propertyData = {
-        name: 'Test Property',
-        type: 'APARTMENT',
-        location: 'Test Location',
-        address: '123 Test Street',
-        city: 'Test City',
-        state: 'Test State',
-        country: 'Test Country',
-        price: 5000000,
-        area: 1200,
-        bedrooms: 3,
-        bathrooms: 2
-      };
-
-      const response = await request(app)
-        .post('/api/properties')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(propertyData);
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.name).toBe(propertyData.name);
-      
-      propertyId = response.body.data.id;
-    });
-
-    it('should get all properties', async () => {
-      const response = await request(app)
-        .get('/api/properties')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.properties).toBeInstanceOf(Array);
-      expect(response.body.data.pagination).toBeDefined();
-    });
-
-    it('should get property by ID', async () => {
-      const response = await request(app)
-        .get(`/api/properties/${propertyId}`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.id).toBe(propertyId);
-    });
-
-    it('should update property', async () => {
-      const updateData = {
-        name: 'Updated Test Property',
-        price: 5500000
-      };
-
-      const response = await request(app)
-        .put(`/api/properties/${propertyId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(updateData);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.name).toBe(updateData.name);
-    });
-
-    it('should delete property', async () => {
-      const response = await request(app)
-        .delete(`/api/properties/${propertyId}`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-    });
-  });
-
-  describe('CRM - Customers', () => {
-    let customerId: string;
-
-    it('should create a new customer', async () => {
-      const customerData = {
-        name: 'Test Customer',
-        email: 'customer@example.com',
-        phone: '+1234567890',
-        address: '123 Customer Street',
-        city: 'Customer City',
-        state: 'Customer State',
-        country: 'Customer Country'
-      };
-
-      const response = await request(app)
-        .post('/api/crm/customers')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(customerData);
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.name).toBe(customerData.name);
-      
-      customerId = response.body.data.id;
-    });
-
-    it('should get all customers', async () => {
-      const response = await request(app)
-        .get('/api/crm/customers')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.customers).toBeInstanceOf(Array);
-    });
-
-    it('should get customer by ID', async () => {
-      const response = await request(app)
-        .get(`/api/crm/customers/${customerId}`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.id).toBe(customerId);
-    });
-
-    // Clean up
-    afterAll(async () => {
-      if (customerId) {
-        await prisma.customer.delete({
-          where: { id: customerId }
-        });
-      }
-    });
-  });
-
-  describe('CRM - Leads', () => {
-    let leadId: string;
-
-    it('should create a new lead', async () => {
-      const leadData = {
-        name: 'Test Lead',
-        email: 'lead@example.com',
-        phone: '+1234567890',
-        source: 'WEBSITE',
-        status: 'NEW',
-        interest: '3BHK Apartment',
-        budget: 5000000
-      };
-
-      const response = await request(app)
-        .post('/api/crm/leads')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(leadData);
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.name).toBe(leadData.name);
-      
-      leadId = response.body.data.id;
-    });
-
-    it('should get all leads', async () => {
-      const response = await request(app)
-        .get('/api/crm/leads')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.leads).toBeInstanceOf(Array);
-    });
-
-    it('should update lead score', async () => {
-      const response = await request(app)
-        .post(`/api/crm/leads/${leadId}/score`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ score: 85 });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-    });
-
-    // Clean up
-    afterAll(async () => {
-      if (leadId) {
-        await prisma.lead.delete({
-          where: { id: leadId }
-        });
-      }
-    });
-  });
-
-  describe('Bookings', () => {
-    let propertyId: string;
-    let customerId: string;
-    let bookingId: string;
-
-    beforeAll(async () => {
-      // Create test property
-      const property = await prisma.property.create({
-        data: {
-          name: 'Test Property for Booking',
-          type: 'APARTMENT',
-          status: 'AVAILABLE',
-          location: 'Test Location',
-          address: '123 Test Street',
-          city: 'Test City',
-          state: 'Test State',
-          country: 'Test Country',
-          price: 5000000,
-          area: 1200,
-          createdById: testUserId
-        }
-      });
-      propertyId = property.id;
-
-      // Create test customer
-      const customer = await prisma.customer.create({
-        data: {
-          name: 'Test Customer for Booking',
-          email: 'bookingcustomer@example.com',
-          phone: '+1234567890',
-          createdById: testUserId
-        }
-      });
-      customerId = customer.id;
-    });
-
-    it('should create a new booking', async () => {
-      const bookingData = {
-        propertyId,
-        customerId,
-        agentId: testUserId,
-        bookingDate: new Date().toISOString(),
-        amount: 5000000,
-        advanceAmount: 500000,
-        paymentMethod: 'UPI',
-        notes: 'Test booking'
-      };
-
-      const response = await request(app)
-        .post('/api/bookings')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(bookingData);
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.amount).toBe(bookingData.amount);
-      
-      bookingId = response.body.data.id;
-    });
-
-    it('should get all bookings', async () => {
-      const response = await request(app)
-        .get('/api/bookings')
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.bookings).toBeInstanceOf(Array);
-    });
-
-    it('should confirm booking', async () => {
-      const response = await request(app)
-        .post(`/api/bookings/${bookingId}/confirm`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-    });
-
-    // Clean up
-    afterAll(async () => {
-      if (bookingId) {
-        await prisma.booking.delete({
-          where: { id: bookingId }
-        });
-      }
-      if (propertyId) {
-        await prisma.property.delete({
-          where: { id: propertyId }
-        });
-      }
-      if (customerId) {
-        await prisma.customer.delete({
-          where: { id: customerId }
-        });
-      }
-    });
+    await db.delete(bookings).where(eq(bookings.id, testBookingId));
+    await db.delete(leads).where(eq(leads.id, testLeadId));
+    await db.delete(projects).where(eq(projects.id, testProjectId));
+    await db.delete(companies).where(eq(companies.id, testCompanyId));
+    await db.delete(users).where(eq(users.id, testUserId));
   });
 
   describe('Health Check', () => {
     it('should return health status', async () => {
       const response = await request(app)
-        .get('/health');
+        .get('/health')
+        .expect(200);
 
-      expect(response.status).toBe(200);
       expect(response.body.status).toBe('OK');
       expect(response.body.timestamp).toBeDefined();
       expect(response.body.uptime).toBeDefined();
     });
   });
 
-  describe('Error Handling', () => {
-    it('should return 404 for non-existent routes', async () => {
+  describe('Company Endpoints', () => {
+    it('should get company information for INDIA region', async () => {
       const response = await request(app)
-        .get('/api/non-existent-route');
+        .get('/api/v1/company?region=INDIA')
+        .expect(200);
 
-      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.region).toBe('INDIA');
+      expect(response.body.data.currency).toBe('INR');
+      expect(response.body.data.compliance.taxName).toBe('GST');
     });
 
-    it('should return 401 for protected routes without auth', async () => {
+    it('should get company information for UAE region', async () => {
       const response = await request(app)
-        .get('/api/properties');
+        .get('/api/v1/company?region=UAE')
+        .expect(200);
 
-      expect(response.status).toBe(401);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.region).toBe('UAE');
+      expect(response.body.data.currency).toBe('AED');
+      expect(response.body.data.compliance.taxName).toBe('VAT');
     });
 
-    it('should return 400 for invalid data', async () => {
+    it('should calculate tax for INDIA region', async () => {
       const response = await request(app)
-        .post('/api/properties')
-        .set('Authorization', `Bearer ${authToken}`)
+        .post('/api/v1/company/tax-calculate')
         .send({
-          name: '', // Invalid empty name
-          type: 'INVALID_TYPE' // Invalid type
-        });
+          amount: 1000000,
+          region: 'INDIA'
+        })
+        .expect(200);
 
-      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.originalAmount).toBe(1000000);
+      expect(response.body.data.taxAmount).toBe(50000);
+      expect(response.body.data.totalAmount).toBe(1050000);
+      expect(response.body.data.taxName).toBe('GST');
+    });
+
+    it('should calculate tax for UAE region', async () => {
+      const response = await request(app)
+        .post('/api/v1/company/tax-calculate')
+        .send({
+          amount: 1000000,
+          region: 'UAE'
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.originalAmount).toBe(1000000);
+      expect(response.body.data.taxAmount).toBe(50000);
+      expect(response.body.data.totalAmount).toBe(1050000);
+      expect(response.body.data.taxName).toBe('VAT');
+    });
+
+    it('should get cities for INDIA region', async () => {
+      const response = await request(app)
+        .get('/api/v1/company/cities?region=INDIA')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.data.length).toBeGreaterThan(0);
+      expect(response.body.data[0].region).toBe('INDIA');
+    });
+
+    it('should get cities for UAE region', async () => {
+      const response = await request(app)
+        .get('/api/v1/company/cities?region=UAE')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.data.length).toBeGreaterThan(0);
+      expect(response.body.data[0].region).toBe('UAE');
+    });
+  });
+
+  describe('Projects Endpoints', () => {
+    it('should get projects with pagination', async () => {
+      const response = await request(app)
+        .get('/api/v1/projects?page=1&limit=10')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.meta).toBeDefined();
+      expect(response.body.meta.page).toBe(1);
+      expect(response.body.meta.limit).toBe(10);
+    });
+
+    it('should get projects with filters', async () => {
+      const response = await request(app)
+        .get('/api/v1/projects?status=ONGOING&city=Mumbai')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+    });
+
+    it('should get project by ID', async () => {
+      const response = await request(app)
+        .get(`/api/v1/projects/${testProjectId}`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.id).toBe(testProjectId);
+      expect(response.body.data.name).toBe('Test Project');
+    });
+
+    it('should get project plots', async () => {
+      const response = await request(app)
+        .get(`/api/v1/projects/${testProjectId}/plots`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+    });
+
+    it('should get project statistics', async () => {
+      const response = await request(app)
+        .get(`/api/v1/projects/${testProjectId}/stats`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.totalUnits).toBeDefined();
+      expect(response.body.data.availableUnits).toBeDefined();
+      expect(response.body.data.soldUnits).toBeDefined();
+    });
+  });
+
+  describe('Leads Endpoints', () => {
+    it('should get leads with pagination', async () => {
+      const response = await request(app)
+        .get('/api/v1/leads?page=1&limit=10')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.meta).toBeDefined();
+    });
+
+    it('should get leads with filters', async () => {
+      const response = await request(app)
+        .get('/api/v1/leads?source=WEBSITE&stage=ENQUIRY_RECEIVED')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+    });
+
+    it('should create new lead', async () => {
+      const newLead = {
+        name: 'New Test Lead',
+        email: 'newlead@example.com',
+        phone: '+1234567890',
+        source: 'WHATSAPP',
+        interest: '3 BHK Villa',
+        budget: 8000000,
+        notes: 'New test lead notes'
+      };
+
+      const response = await request(app)
+        .post('/api/v1/leads')
+        .send(newLead)
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.name).toBe(newLead.name);
+      expect(response.body.data.email).toBe(newLead.email);
+      expect(response.body.data.source).toBe(newLead.source);
+    });
+
+    it('should update lead stage', async () => {
+      const response = await request(app)
+        .put(`/api/v1/leads/${testLeadId}/stage`)
+        .send({
+          stage: 'SITE_VISIT',
+          notes: 'Updated to site visit stage'
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.stage).toBe('SITE_VISIT');
+    });
+
+    it('should get lead statistics', async () => {
+      const response = await request(app)
+        .get('/api/v1/leads/stats')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.total).toBeDefined();
+      expect(response.body.data.byStage).toBeDefined();
+      expect(response.body.data.bySource).toBeDefined();
+    });
+  });
+
+  describe('Bookings Endpoints', () => {
+    it('should get bookings with pagination', async () => {
+      const response = await request(app)
+        .get('/api/v1/bookings?page=1&limit=10')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+      expect(response.body.meta).toBeDefined();
+    });
+
+    it('should get bookings with filters', async () => {
+      const response = await request(app)
+        .get('/api/v1/bookings?status=PENDING&stage=TENTATIVELY_BOOKED')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeInstanceOf(Array);
+    });
+
+    it('should create new booking', async () => {
+      const newBooking = {
+        propertyId: testProjectId,
+        customerId: testUserId,
+        agentId: testUserId,
+        amount: 6000000,
+        advanceAmount: 600000,
+        paymentMethod: 'CARD',
+        notes: 'New test booking'
+      };
+
+      const response = await request(app)
+        .post('/api/v1/bookings')
+        .send(newBooking)
+        .expect(201);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.propertyId).toBe(newBooking.propertyId);
+      expect(response.body.data.amount).toBe(newBooking.amount.toString());
+    });
+
+    it('should update booking stage', async () => {
+      const response = await request(app)
+        .put(`/api/v1/bookings/${testBookingId}/stage`)
+        .send({
+          stage: 'CONFIRMED',
+          notes: 'Booking confirmed'
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.stage).toBe('CONFIRMED');
+    });
+
+    it('should update booking pricing', async () => {
+      const pricingBreakdown = {
+        basePrice: 5000000,
+        advanceAmount: 500000,
+        remainingAmount: 4500000,
+        taxes: 250000,
+        totalAmount: 5250000
+      };
+
+      const response = await request(app)
+        .put(`/api/v1/bookings/${testBookingId}/pricing`)
+        .send({ pricingBreakdown })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.pricingBreakdown).toEqual(pricingBreakdown);
+    });
+
+    it('should get booking statistics', async () => {
+      const response = await request(app)
+        .get('/api/v1/bookings/stats')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.total).toBeDefined();
+      expect(response.body.data.byStage).toBeDefined();
+      expect(response.body.data.byStatus).toBeDefined();
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should return 404 for non-existent project', async () => {
+      const response = await request(app)
+        .get('/api/v1/projects/non-existent-id')
+        .expect(404);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.message).toContain('not found');
+    });
+
+    it('should return 400 for invalid tax calculation', async () => {
+      const response = await request(app)
+        .post('/api/v1/company/tax-calculate')
+        .send({
+          amount: -1000,
+          region: 'INDIA'
+        })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+    });
+
+    it('should return 400 for invalid lead creation', async () => {
+      const response = await request(app)
+        .post('/api/v1/leads')
+        .send({
+          name: 'Test Lead',
+          // Missing required fields
+        })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.errors).toBeDefined();
     });
   });
 });

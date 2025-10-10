@@ -47,7 +47,11 @@
     "react-query": "^3.39.3",
     "react-redux": "^9.0.4",
     "redux-persist": "^6.0.0",
-    "socket.io-client": "^4.7.4"
+    "socket.io-client": "^4.7.4",
+    "expo-av": "~13.10.0",
+    "react-native-webview": "13.6.4",
+    "@tensorflow/tfjs": "^4.15.0",
+    "@tensorflow/tfjs-react-native": "^0.8.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Card, Title, Paragraph, Chip, Button, IconButton } from 'react-native-paper';
+import * as WebBrowser from 'expo-web-browser';
 import { useTheme } from '../theme';
 import { Property } from '../types/property';
 import { formatCurrency } from '../utils/formatting';
+import VirtualTourViewer from './VirtualTourViewer';
 
 interface PropertyCardProps {
   property: Property;
@@ -25,6 +27,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
   isFavorite = false,
 }) => {
   const theme = useTheme();
+  const [showVirtualTour, setShowVirtualTour] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -179,6 +182,18 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
               {property.type}
             </Chip>
           </View>
+
+          {property.videos && property.videos.length > 0 && (
+            <View style={{ marginTop: 12 }}>
+              <Button
+                mode="contained"
+                icon="play-circle"
+                onPress={() => setShowVirtualTour(true)}
+              >
+                Watch Virtual Tour
+              </Button>
+            </View>
+          )}
         </Card.Content>
       </TouchableOpacity>
 
@@ -203,6 +218,16 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
             Delete
           </Button>
         </Card.Actions>
+      )}
+
+      {/* Virtual Tour Viewer Modal */}
+      {property.videos && property.videos.length > 0 && (
+        <VirtualTourViewer
+          visible={showVirtualTour}
+          tourUrl={property.videos[0]}
+          title={`${property.name} - Virtual Tour`}
+          onClose={() => setShowVirtualTour(false)}
+        />
       )}
     </Card>
   );
